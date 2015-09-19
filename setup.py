@@ -1,92 +1,68 @@
-from distutils.core import setup
-import fnmatch, os.path
+from setuptools import setup, find_packages
+from codecs import open
+import os
+import sys
+
 from netlib import version
 
-def _fnmatch(name, patternList):
-    for i in patternList:
-        if fnmatch.fnmatch(name, i):
-            return True
-    return False
+# Based on https://github.com/pypa/sampleproject/blob/master/setup.py
+# and https://python-packaging-user-guide.readthedocs.org/
+# and https://caremad.io/2014/11/distributing-a-cffi-project/
 
+here = os.path.abspath(os.path.dirname(__file__))
 
-def _splitAll(path):
-    parts = []
-    h = path
-    while 1:
-        if not h:
-            break
-        h, t = os.path.split(h)
-        parts.append(t)
-    parts.reverse()
-    return parts
+with open(os.path.join(here, 'README.mkd'), encoding='utf-8') as f:
+    long_description = f.read()
 
+deps = {
+    "pyasn1>=0.1.7",
+    "pyOpenSSL>=0.15.1",
+    "cryptography>=1.0",
+    "passlib>=1.6.2",
+    "hpack>=1.0.1",
+    "six>=1.9.0",
+    "certifi>=2015.9.6.2",
+}
+if sys.version_info < (3, 0):
+    deps.add("ipaddress>=1.0.14")
 
-def findPackages(path, dataExclude=[]):
-    """
-        Recursively find all packages and data directories rooted at path. Note
-        that only data _directories_ and their contents are returned -
-        non-Python files at module scope are not, and should be manually
-        included.
-
-        dataExclude is a list of fnmatch-compatible expressions for files and
-        directories that should not be included in pakcage_data.
-
-        Returns a (packages, package_data) tuple, ready to be passed to the
-        corresponding distutils.core.setup arguments.
-    """
-    packages = []
-    datadirs = []
-    for root, dirs, files in os.walk(path, topdown=True):
-        if "__init__.py" in files:
-            p = _splitAll(root)
-            packages.append(".".join(p))
-        else:
-            dirs[:] = []
-            if packages:
-                datadirs.append(root)
-
-    # Now we recurse into the data directories
-    package_data = {}
-    for i in datadirs:
-        if not _fnmatch(i, dataExclude):
-            parts = _splitAll(i)
-            module = ".".join(parts[:-1])
-            acc = package_data.get(module, [])
-            for root, dirs, files in os.walk(i, topdown=True):
-                sub = os.path.join(*_splitAll(root)[1:])
-                if not _fnmatch(sub, dataExclude):
-                    for fname in files:
-                        path = os.path.join(sub, fname)
-                        if not _fnmatch(path, dataExclude):
-                            acc.append(path)
-                else:
-                    dirs[:] = []
-            package_data[module] = acc
-    return packages, package_data
-
-
-long_description = file("README").read()
-packages, package_data = findPackages("netlib")
 setup(
-        name = "netlib",
-        version = version.VERSION,
-        description = "A collection of network utilities used by pathod and mitmproxy.",
-        long_description = long_description,
-        author = "Aldo Cortesi",
-        author_email = "aldo@corte.si",
-        url = "http://cortesi.github.com/netlib",
-        packages = packages,
-        package_data = package_data,
-        classifiers = [
-            "License :: OSI Approved :: MIT License",
-            "Development Status :: 3 - Alpha",
-            "Operating System :: POSIX",
-            "Programming Language :: Python",
-            "Topic :: Internet",
-            "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
-            "Topic :: Software Development :: Testing",
-            "Topic :: Software Development :: Testing :: Traffic Generation",
-            "Topic :: Internet :: WWW/HTTP",
-        ],
-        install_requires=["pyasn1>0.1.2", "pyopenssl>=0.12"],
+    name="netlib",
+    version=version.VERSION,
+    description="A collection of network utilities used by pathod and mitmproxy.",
+    long_description=long_description,
+    url="http://github.com/mitmproxy/netlib",
+    author="Aldo Cortesi",
+    author_email="aldo@corte.si",
+    license="MIT",
+    classifiers=[
+        "License :: OSI Approved :: MIT License",
+        "Development Status :: 3 - Alpha",
+        "Operating System :: POSIX",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 2",
+        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Programming Language :: Python :: Implementation :: PyPy",
+        "Topic :: Internet",
+        "Topic :: Internet :: WWW/HTTP",
+        "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+        "Topic :: Software Development :: Testing",
+        "Topic :: Software Development :: Testing :: Traffic Generation",
+    ],
+    packages=find_packages(),
+    include_package_data=True,
+    zip_safe=False,
+    install_requires=list(deps),
+    extras_require={
+        'dev': [
+            "mock>=1.0.1",
+            "nose>=1.3.0",
+            "nose-cov>=1.6",
+            "coveralls>=0.4.1",
+            "autopep8>=1.0.3",
+            "autoflake>=0.6.6",
+            "wheel>=0.24.0",
+        ]
+    },
 )

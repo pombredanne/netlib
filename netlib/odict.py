@@ -1,4 +1,8 @@
-import re, copy
+from __future__ import (absolute_import, print_function, division)
+import re
+import copy
+import six
+
 
 def safe_subn(pattern, repl, target, *args, **kwargs):
     """
@@ -9,10 +13,13 @@ def safe_subn(pattern, repl, target, *args, **kwargs):
     return re.subn(str(pattern), str(repl), target, *args, **kwargs)
 
 
-class ODict:
+class ODict(object):
+
     """
-        A dictionary-like object for managing ordered (key, value) data.
+        A dictionary-like object for managing ordered (key, value) data. Think
+        about it as a convenient interface to a list of (key, value) tuples.
     """
+
     def __init__(self, lst=None):
         self.lst = lst or []
 
@@ -21,6 +28,9 @@ class ODict:
 
     def __eq__(self, other):
         return self.lst == other.lst
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __iter__(self):
         return self.lst.__iter__()
@@ -58,11 +68,21 @@ class ODict:
             Sets the values for key k. If there are existing values for this
             key, they are cleared.
         """
-        if isinstance(valuelist, basestring):
-            raise ValueError("ODict valuelist should be lists.")
-        new = self._filter_lst(k, self.lst)
-        for i in valuelist:
-            new.append([k, i])
+        if isinstance(valuelist, six.text_type) or isinstance(valuelist, six.binary_type):
+            raise ValueError(
+                "Expected list of values instead of string. "
+                "Example: odict[b'Host'] = [b'www.example.com']"
+            )
+        kc = self._kconv(k)
+        new = []
+        for i in self.lst:
+            if self._kconv(i[0]) == kc:
+                if valuelist:
+                    new.append([k, valuelist.pop(0)])
+            else:
+                new.append(i)
+        while valuelist:
+            new.append([k, valuelist.pop(0)])
         self.lst = new
 
     def __delitem__(self, k):
@@ -72,13 +92,17 @@ class ODict:
         self.lst = self._filter_lst(k, self.lst)
 
     def __contains__(self, k):
+        k = self._kconv(k)
         for i in self.lst:
-            if self._kconv(i[0]) == self._kconv(k):
+            if self._kconv(i[0]) == k:
                 return True
         return False
 
-    def add(self, key, value):
-        self.lst.append([key, str(value)])
+    def add(self, key, value, prepend=False):
+        if prepend:
+            self.lst.insert(0, [key, value])
+        else:
+            self.lst.append([key, value])
 
     def get(self, k, d=None):
         if k in self:
@@ -95,13 +119,6 @@ class ODict:
     def items(self):
         return self.lst[:]
 
-    def _get_state(self):
-        return [tuple(i) for i in self.lst]
-
-    @classmethod
-    def _from_state(klass, state):
-        return klass([list(i) for i in state])
-
     def copy(self):
         """
             Returns a copy of this object.
@@ -109,12 +126,14 @@ class ODict:
         lst = copy.deepcopy(self.lst)
         return self.__class__(lst)
 
+    def extend(self, other):
+        """
+            Add the contents of other, preserving any duplicates.
+        """
+        self.lst.extend(other.lst)
+
     def __repr__(self):
-        elements = []
-        for itm in self.lst:
-            elements.append(itm[0] + ": " + itm[1])
-        elements.append("")
-        return "\r\n".join(elements)
+        return repr(self.lst)
 
     def in_any(self, key, value, caseless=False):
         """
@@ -128,19 +147,6 @@ class ODict:
             if caseless:
                 i = i.lower()
             if value in i:
-                return True
-        return False
-
-    def match_re(self, expr):
-        """
-            Match the regular expression against each (key, value) pair. For
-            each pair a string of the following format is matched against:
-
-            "key: value"
-        """
-        for k, v in self.lst:
-            s = "%s: %s"%(k, v)
-            if re.search(expr, s):
                 return True
         return False
 
@@ -162,11 +168,24 @@ class ODict:
         self.lst = nlst
         return count
 
+    # Implement the StateObject protocol from mitmproxy
+    def get_state(self, short=False):
+        return [tuple(i) for i in self.lst]
+
+    def load_state(self, state):
+        self.lst = [list(i) for i in state]
+
+    @classmethod
+    def from_state(klass, state):
+        return klass([list(i) for i in state])
+
 
 class ODictCaseless(ODict):
+
     """
         A variant of ODict with "caseless" keys. This version _preserves_ key
         case, but does not consider case when setting or getting items.
     """
+
     def _kconv(self, s):
         return s.lower()

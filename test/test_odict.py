@@ -1,53 +1,33 @@
-from netlib import odict
-import tutils
+from netlib import odict, tutils
 
 
-class TestODict:
+class TestODict(object):
+
     def setUp(self):
         self.od = odict.ODict()
 
+    def test_repr(self):
+        h = odict.ODict()
+        h["one"] = ["two"]
+        assert repr(h)
+
     def test_str_err(self):
         h = odict.ODict()
-        tutils.raises(ValueError, h.__setitem__, "key", "foo")
-
-    def test_dictToHeader1(self):
-        self.od.add("one", "uno")
-        self.od.add("two", "due")
-        self.od.add("two", "tre")
-        expected = [
-            "one: uno\r\n",
-            "two: due\r\n",
-            "two: tre\r\n",
-            "\r\n"
-        ]
-        out = repr(self.od)
-        for i in expected:
-            assert out.find(i) >= 0
-
-    def test_dictToHeader2(self):
-        self.od["one"] = ["uno"]
-        expected1 = "one: uno\r\n"
-        expected2 = "\r\n"
-        out = repr(self.od)
-        assert out.find(expected1) >= 0
-        assert out.find(expected2) >= 0
-
-    def test_match_re(self):
-        h = odict.ODict()
-        h.add("one", "uno")
-        h.add("two", "due")
-        h.add("two", "tre")
-        assert h.match_re("uno")
-        assert h.match_re("two: due")
-        assert not h.match_re("nonono")
+        with tutils.raises(ValueError):
+            h["key"] = u"foo"
+        with tutils.raises(ValueError):
+            h["key"] = b"foo"
 
     def test_getset_state(self):
         self.od.add("foo", 1)
         self.od.add("foo", 2)
         self.od.add("bar", 3)
-        state = self.od._get_state()
-        nd = odict.ODict._from_state(state)
+        state = self.od.get_state()
+        nd = odict.ODict.from_state(state)
         assert nd == self.od
+        b = odict.ODict()
+        b.load_state(state)
+        assert b == self.od
 
     def test_in_any(self):
         self.od["one"] = ["atwoa", "athreea"]
@@ -77,6 +57,7 @@ class TestODict:
         self.od.add("foo", 2)
         self.od.add("bar", 3)
         assert self.od == self.od.copy()
+        assert not self.od != self.od.copy()
 
     def test_del(self):
         self.od.add("foo", 1)
@@ -97,16 +78,24 @@ class TestODict:
     def test_get(self):
         self.od.add("one", "two")
         assert self.od.get("one") == ["two"]
-        assert self.od.get("two") == None
+        assert self.od.get("two") is None
 
     def test_get_first(self):
         self.od.add("one", "two")
         self.od.add("one", "three")
         assert self.od.get_first("one") == "two"
-        assert self.od.get_first("two") == None
+        assert self.od.get_first("two") is None
+
+    def test_extend(self):
+        a = odict.ODict([["a", "b"], ["c", "d"]])
+        b = odict.ODict([["a", "b"], ["e", "f"]])
+        a.extend(b)
+        assert len(a) == 4
+        assert a["a"] == ["b", "b"]
 
 
-class TestODictCaseless:
+class TestODictCaseless(object):
+
     def setUp(self):
         self.od = odict.ODictCaseless()
 
@@ -141,3 +130,18 @@ class TestODictCaseless:
         self.od.add("bar", 2)
         assert len(self.od.keys()) == 2
 
+    def test_add_order(self):
+        od = odict.ODict(
+            [
+                ["one", "uno"],
+                ["two", "due"],
+                ["three", "tre"],
+            ]
+        )
+        od["two"] = ["foo", "bar"]
+        assert od.lst == [
+            ["one", "uno"],
+            ["two", "foo"],
+            ["three", "tre"],
+            ["two", "bar"],
+        ]
